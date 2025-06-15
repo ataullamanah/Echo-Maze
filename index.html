@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Echo Maze</title>
+    <style>
+        .game-grid {
+            font-family: monospace;
+            font-size: 16px;
+            line-height: 1;
+            white-space: pre;
+        }
+        .wall { color: gray; }
+        .path { color: white; }
+        .player { color: blue; }
+        .trap { color: red; }
+        .exit { color: green; }
+        .fog { color: #333; }
+        .info { font-family: Arial, sans-serif; margin-top: 10px; }
+    </style>
+</head>
+<body style="background-color: #222; color: white;">
+    <div id="game" class="game-grid"></div>
+    <div id="info" class="info">Health: 3</div>
+    <script>
+        class EchoMaze {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.player = { x: 1, y: 1, health: 3 };
+                this.exit = { x: width - 2, y: height - 2 };
+                this.map = this.generateMaze();
+                this.visible = this.createFog();
+                this.gameDiv = document.getElementById('game');
+                this.infoDiv = document.getElementById('info');
+                this.render();
+                this.bindEvents();
+            }
+
+            generateMaze() {
+                const map = Array(this.height).fill().map(() => Array(this.width).fill('#'));
+                const carve = (x, y) => {
+                    map[y][x] = '.';
+                    const dirs = [[0, 2], [2, 0], [0, -2], [-2, 0]];
+                    dirs.sort(() => Math.random() - 0.5);
+                    for (let [dx, dy] of dirs) {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx > 0 && nx < this.width - 1 && ny > 0 && ny < this.height - 1 && map[ny][nx] === '#') {
+                            map[y + dy / 2][x + dx / 2] = '.';
+                            carve(nx, ny);
+                        }
+                    }
+                };
+                carve(1, 1);
+                map[this.player.y][this.player.x] = '@';
+                map[this.exit.y][this.exit.x] = 'E';
+                for (let i = 0; i < 3; i++) {
+                    let tx, ty;
+                    do { tx = Math.floor(Math.random() * this.width); ty = Math.floor(Math.random() * this.height); }
+                    while (map[ty][tx] !== '.');
+                    map[ty][tx] = 'T';
+                }
+                return map;
+            }
+
+            createFog() {
+                return Array(this.height).fill().map(() => Array(this.width).fill(false));
+            }
+
+            sendEcho() {
+                const { x, y } = this.player;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const ny = y + dy, nx = x + dx;
+                        if (ny >= 0 && ny < this.height && nx >= 0 && nx < this.width) {
+                            this.visible[ny][nx] = true;
+                        }
+                    }
+                }
+                setTimeout(() => this.hideEcho(), 1000);
+            }
+
+            hideEcho() {
+                this.visible = this.createFog();
+                this.render();
+            }
+
+            movePlayer(dx, dy) {
+                const newX = this.player.x + dx, newY = this.player.y + dy;
+                if (newX >= 0 && newX < this.width && newY >= 0 && newY < this.height && this.map[newY][newX] !== '#') {
+                    this.map[this.player.y][this.player.x] = '.';
+                    this.player.x = newX;
+                    this.player.y = newY;
+                    const cell = this.map[newY][newX];
+                    if (cell === 'T') this.player.health--;
+                    if (cell === 'E' && this.player.health > 0) {
+                        alert('You win!');
+                        this.reset();
+                        return;
+                    }
+                    this.map[newY][newX] = '@';
+                    this.render();
+                    this.updateInfo();
+                    if (this.player.health <= 0) {
+                        alert('Game Over!');
+                        this.reset();
+                    }
+                }
+            }
+
+            reset() {
+                this.player = { x: 1, y: 1, health: 3 };
+                this.map = this.generateMaze();
+                this.visible = this.createFog();
+                this.render();
+                this.updateInfo();
+            }
+
+            render() {
+                let display = '';
+                for (let y = 0; y < this.height; y++) {
+                    for (let x = 0; x < this.width; x++) {
+                        const char = this.map[y][x];
+                        if (this.visible[y][x] || (x === this.player.x && y === this.player.y)) {
+                            display += `<span class="${char === '#' ? 'wall' : char === '@' ? 'player' : char === 'T' ? 'trap' : char === 'E' ? 'exit' : 'path'}">${char}</span>`;
+                        } else {
+                            display += `<span class="fog">?</span>`;
+                        }
+                    }
+                    display += '\n';
+                }
+                this.gameDiv.innerHTML = display;
+            }
+
+            updateInfo() {
+                this.infoDiv.textContent = `Health: ${this.player.health}`;
+            }
+
+            bindEvents() {
+                document.addEventListener('keydown', (e) => {
+                    switch (e.key) {
+                        case 'ArrowUp': this.movePlayer(0, -1); break;
+                        case 'ArrowDown': this.movePlayer(0, 1); break;
+                        case 'ArrowLeft': this.movePlayer(-1, 0); break;
+                        case 'ArrowRight': this.movePlayer(1, 0); break;
+                        case 'e': this.sendEcho(); break;
+                    }
+                });
+            }
+        }
+
+        const game = new EchoMaze(10, 10);
+    </script>
+</body>
+</html>
